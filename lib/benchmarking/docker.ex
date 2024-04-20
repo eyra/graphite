@@ -6,13 +6,18 @@ defmodule Benchmarking.Docker do
   require Logger
 
   def build(path, repository, tag) do
-    docker_file = Repo.dockerfile(path)
+    with {:ok, docker_file} <- Repo.dockerfile(path) do
+      if File.exists?(Path.join(path, docker_file)) do
+        {_, status} =
+          System.cmd("docker", ["build", "-q", "-t", "#{repository}:#{tag}", "-f", docker_file, "."], cd: path)
 
-    {_, status} = System.cmd("docker", ["build", "-q", "-t", "#{repository}:#{tag}", "-f", docker_file, "."], cd: path)
-
-    case status do
-      0 -> :ok
-      _ -> {:error, "Failed to build image"}
+        case status do
+          0 -> :ok
+          _ -> {:error, "Failed to build image"}
+        end
+      else
+        {:error, "Repo does not have expect Dockerfile with name: #{docker_file}"}
+      end
     end
   end
 

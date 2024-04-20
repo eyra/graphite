@@ -125,7 +125,7 @@ defmodule Benchmarking do
         _ -> {:error, "Error reading scores.csv"}
       end
     else
-      {:error, _message} -> [%{"error_message" => "Failed to run scoring container"}]
+      {:error, message} -> {:error, "Failed to run scoring container: #{message}"}
     end
   end
 
