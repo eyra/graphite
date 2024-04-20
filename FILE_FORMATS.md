@@ -1,6 +1,6 @@
-# CSV File Formats
+# File Formats
 
-## Input
+## Input csv
 
 ### Columns
 * submission-id
@@ -25,7 +25,7 @@ submission-id,url,ref
 
 ```
 
-## Output 
+## Output csv
 
 ### Columns
 * submission-id

@@ -1,10 +1,13 @@
 defmodule Benchmarking.FSCase do
+  @moduledoc false
   use ExUnit.CaseTemplate
+
   alias Benchmarking.Tmp
 
   using _options do
     quote do
       import Benchmarking.FSCase
+
       alias Benchmarking.Tmp
     end
   end

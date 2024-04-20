@@ -1,4 +1,5 @@
 defmodule Benchmarking.Tmp do
+  @moduledoc false
   alias Benchmarking.Random
 
   def make_tmp_dir do

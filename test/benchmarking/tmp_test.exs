@@ -1,5 +1,6 @@
 defmodule Benchmarking.TmpTest do
   use ExUnit.Case, async: true
+
   alias Benchmarking.Tmp
 
   test "make_tmp_dir creates a temporary directory and deletes it after the callback is executed" do
