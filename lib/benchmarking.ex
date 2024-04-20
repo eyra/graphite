@@ -56,7 +56,7 @@ defmodule Benchmarking do
       |> Stream.map(&Map.merge(&1, %{"url" => url, "ref" => ref, "submission-id" => id}))
       |> Stream.map(&Map.put_new(&1, "status", get_status(&1)))
     end)
-    |> CSV.encode(headers: ["submission-id", "status", "error_message"] ++ results_headers)
+    |> CSV.encode(headers: ["submission-id", "url", "ref", "status", "error_message"] ++ results_headers)
   end
 
   def run_benchmark(repo, ref, %{
