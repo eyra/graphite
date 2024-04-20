@@ -1,9 +1,11 @@
 defmodule Benchmarking.GitTest do
   use Benchmarking.FSCase, async: true
+
   alias Benchmarking.Git
 
   test "clone_repo clones the repository", %{tmp_dir: tmp_dir} do
-    cmd(tmp_dir, "git", ["init"])
+    tmp_dir
+    |> cmd("git", ["init"])
     |> cmd("touch", ["README.md"])
     |> cmd("git", ["add", "."])
     |> cmd("git", ["commit", "-m", "Initial commit"])
@@ -15,7 +17,8 @@ defmodule Benchmarking.GitTest do
   end
 
   test "clone_repo clones the correct branch", %{tmp_dir: tmp_dir} do
-    cmd(tmp_dir, "git", ["init"])
+    tmp_dir
+    |> cmd("git", ["init"])
     |> cmd("touch", ["README.md"])
     |> cmd("git", ["add", "."])
     |> cmd("git", ["commit", "-m", "Initial commit"])
@@ -33,14 +36,16 @@ defmodule Benchmarking.GitTest do
   end
 
   test "clone_repo clones the correct ref", %{tmp_dir: tmp_dir} do
-    cmd(tmp_dir, "git", ["init"])
+    tmp_dir
+    |> cmd("git", ["init"])
     |> cmd("touch", ["README.md"])
     |> cmd("git", ["add", "."])
     |> cmd("git", ["commit", "-m", "Initial commit"])
 
     {_, %{output: ref}} = cmd(tmp_dir, "git", ["show-ref", "--hash"])
 
-    cmd(tmp_dir, "git", ["rm", "README.md"])
+    tmp_dir
+    |> cmd("git", ["rm", "README.md"])
     |> cmd("git", ["commit", "-m", "Removed README.md"])
 
     Tmp.make_tmp_dir(fn clone_dir ->

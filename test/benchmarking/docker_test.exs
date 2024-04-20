@@ -1,5 +1,6 @@
 defmodule Benchmarking.DockerTest do
   use ExUnit.Case, async: true
+
   alias Benchmarking.Random
 
   # setup do
@@ -36,6 +37,6 @@ defmodule Benchmarking.DockerTest do
     Benchmarking.Docker.build(__DIR__, "docker-test", tag)
 
     images = Benchmarking.Docker.images()
-    assert images |> Enum.any?(&(&1.repository == "docker-test" && &1.tag == tag))
+    assert Enum.any?(images, &(&1.repository == "docker-test" && &1.tag == tag))
   end
 end

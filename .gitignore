@@ -26,3 +26,4 @@ benchmarking-*.tar
 /tmp/
 *.csv
 .DS_Store
+/benchmarking

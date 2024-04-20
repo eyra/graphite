@@ -1,5 +1,6 @@
 defmodule BenchmarkingTest do
   use Benchmarking.FSCase
+
   alias Benchmarking.Git
 
   setup %{tmp_dir: tmp_dir} do
@@ -13,7 +14,8 @@ defmodule BenchmarkingTest do
     template_repo_dir = Path.join(tmp_dir, "template_repo")
 
     {_, %{output: ref}} =
-      cmd(template_repo_dir, "git", ["init"])
+      template_repo_dir
+      |> cmd("git", ["init"])
       |> write(
         "Dockerfile",
         """

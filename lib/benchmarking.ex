@@ -2,117 +2,81 @@ defmodule Benchmarking do
   @moduledoc """
   Documentation for `Benchmarking`.
   """
+  alias Benchmarking.Docker
   alias Benchmarking.Git
   alias Benchmarking.Tmp
-  alias Benchmarking.Docker
+
+  require Logger
 
   @scoring_image_name "benchmarking-scoring"
   @scoring_image_tag "latest"
 
   def main(args) do
-    {parsed, _, _} =
-      OptionParser.parse(args,
-        strict: [
-          template_repo: :string,
-          template_repo_ref: :string,
-          repositories: :string,
-          benchmark_data: :string,
-          outcomes_data: :string,
-          output: :string,
-          headers: :string
-        ]
-      )
+    settings = args |> List.first() |> File.read!() |> Jason.decode!(keys: :atoms)
+    output = File.stream!(Access.fetch!(settings, :results_file))
 
-    output = File.stream!(Keyword.get(parsed, :output))
-
-    parsed
-    |> Map.new()
-    |> Map.put(:headers, Keyword.get(parsed, :headers) |> String.split(","))
+    settings
+    |> Map.put(:headers, Access.fetch!(settings, :results_headers))
     |> run()
     |> Stream.into(output)
     |> Stream.run()
   end
 
   def run(params) do
-    build_scoring_image(params)
+    case build_scoring_image(params) do
+      :ok ->
+        process(params)
 
-    process(params)
-
-    # Cleanup template repo
-    # Cleanup scoring image
-    # Write scores to file
+      {:error, message} ->
+        Logger.error(message)
+        []
+    end
   end
 
   def build_scoring_image(%{template_repo: repo, template_repo_ref: ref}) do
     Tmp.make_tmp_dir(fn clone_dir ->
-      Git.clone_repo(repo, clone_dir)
-      Git.reset_repo(clone_dir, ref)
-      Docker.build(clone_dir, @scoring_image_name, @scoring_image_tag)
+      with :ok <- Git.clone_repo(repo, clone_dir),
+           :ok <- Git.reset_repo(clone_dir, ref),
+           :ok <- Docker.build(clone_dir, @scoring_image_name, @scoring_image_tag) do
+        :ok
+      else
+        {:error, message} -> {:error, "Build of scoring image failed: #{message}"}
+      end
     end)
   end
 
-  def process(%{
-        repositories: repositories_csv,
-        benchmark_data: benchmark_data,
-        outcomes_data: outcomes_data,
-        headers: headers
-      }) do
-    File.stream!(Path.expand(repositories_csv), [read_ahead: 100_000], 1000)
+  def process(%{repositories_file: repositories_file, results_headers: results_headers} = settings) do
+    repositories_file
+    |> Path.expand()
+    |> File.stream!([read_ahead: 100_000], 1000)
     |> CSV.decode!(headers: true)
-    |> Stream.flat_map(fn %{"url" => url, "ref" => ref, "id" => id} ->
+    |> Stream.flat_map(fn %{"url" => url, "ref" => ref, "submission-id" => id} ->
       url
-      |> run_benchmark(ref, benchmark_data, outcomes_data)
-      |> Stream.map(&Map.put(&1, "id", id))
+      |> run_benchmark(ref, settings)
+      |> Stream.map(&Map.merge(&1, %{"url" => url, "ref" => ref, "submission-id" => id}))
       |> Stream.map(&Map.put_new(&1, "status", get_status(&1)))
     end)
-    |> CSV.encode(headers: ["id", "status", "error_message"] ++ headers)
+    |> CSV.encode(headers: ["submission-id", "status", "error_message"] ++ results_headers)
   end
 
-  def run_benchmark(repo, ref, benchmark_data, outcomes_data) do
+  def run_benchmark(repo, ref, %{
+        score_volume_mounts: score_volume_mounts,
+        score_entrypoint: score_entrypoint,
+        score_args: score_args,
+        score_file: score_file,
+        prediction_volume_mounts: prediction_volume_mounts,
+        prediction_args: prediction_args
+      }) do
     repo_name = repo |> String.split("/") |> List.last() |> String.split(".") |> List.first()
     tag = ref
 
-    Tmp.make_tmp_dir(fn predictions_dir ->
-      with :ok <- build_prediction_image(repo, ref, repo_name, tag),
-           :ok <- run_prediction_image(repo_name, tag, benchmark_data, predictions_dir),
-           :ok <- check_path(Path.join(predictions_dir, "predictions.csv")) do
-        outcomes_dir = Path.expand(Path.dirname(outcomes_data))
-
-        Tmp.make_tmp_dir(fn scores_dir ->
-          scores_path = Path.join(scores_dir, "scores.csv")
-
-          with :ok <-
-                 Docker.run(
-                   @scoring_image_name,
-                   @scoring_image_tag,
-                   [
-                     "score",
-                     "/predictions/predictions.csv",
-                     "/outcomes/#{Path.basename(outcomes_data)}",
-                     "--out=/scores/scores.csv"
-                   ],
-                   volumes: [
-                     {outcomes_dir, "/outcomes"},
-                     {predictions_dir, "/predictions"},
-                     {scores_dir, "/scores"}
-                   ]
-                 ),
-               :ok <- check_path(scores_path) do
-            try do
-              File.stream!(scores_path)
-              |> CSV.decode!(headers: true)
-              |> Enum.into([])
-            rescue
-              _ -> {:error, "Error reading scores.csv"}
-            end
-          else
-            {:error, _message} -> [%{"error_message" => "Failed to run scoring container"}]
-          end
-        end)
-      else
-        {:error, message} -> [%{"error_message" => message}]
-      end
-    end)
+    with :ok <- build_prediction_image(repo, ref, repo_name, tag),
+         :ok <- run_prediction_image(repo_name, tag, prediction_volume_mounts, prediction_args),
+         {:ok, result} <- run_scoring(score_args, score_entrypoint, score_volume_mounts, score_file) do
+      result
+    else
+      {:error, message} -> [%{"error_message" => message}]
+    end
   end
 
   defp get_status(%{"error_message" => _}), do: "error"
@@ -127,22 +91,42 @@ defmodule Benchmarking do
     end)
   end
 
-  defp run_prediction_image(repo_name, tag, benchmark_data, predictions_dir) do
-    data_folder = Path.dirname(Path.expand(benchmark_data))
+  defp run_prediction_image(repo_name, tag, prediction_volume_mounts, prediction_args) do
+    volumes = map_volume_mounts(prediction_volume_mounts)
 
-    Docker.run(
-      repo_name,
-      tag,
-      [
-        "predict",
-        "/data/#{Path.basename(benchmark_data)}",
-        "--out=/predictions/predictions.csv"
-      ],
-      volumes: [
-        {data_folder, "/data"},
-        {predictions_dir, "/predictions"}
-      ]
-    )
+    Docker.run(repo_name, tag, prediction_args, volumes: volumes)
+  end
+
+  defp map_volume_mounts(volume_mounts) do
+    for %{source: source, target: target} <- volume_mounts do
+      {source, target}
+    end
+  end
+
+  defp run_scoring(args, entrypoint, volumes, score_file) do
+    with :ok <-
+           Docker.run(
+             @scoring_image_name,
+             @scoring_image_tag,
+             args,
+             entrypoint: entrypoint,
+             volumes: map_volume_mounts(volumes)
+           ),
+         :ok <- check_path(score_file) do
+      try do
+        result =
+          score_file
+          |> File.stream!()
+          |> CSV.decode!(headers: true)
+          |> Enum.into([])
+
+        {:ok, result}
+      rescue
+        _ -> {:error, "Error reading scores.csv"}
+      end
+    else
+      {:error, _message} -> [%{"error_message" => "Failed to run scoring container"}]
+    end
   end
 
   defp check_path(path) do

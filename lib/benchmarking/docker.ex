@@ -1,9 +1,14 @@
 defmodule Benchmarking.Docker do
+  @moduledoc false
   alias Benchmarking.Docker.Image
+  alias Benchmarking.Repo
+
+  require Logger
 
   def build(path, repository, tag) do
-    {_, status} =
-      System.cmd("docker", ["build", "-q", "-t", "#{repository}:#{tag}", "."], cd: path)
+    docker_file = Repo.dockerfile(path)
+
+    {_, status} = System.cmd("docker", ["build", "-q", "-t", "#{repository}:#{tag}", "-f", docker_file, "."], cd: path)
 
     case status do
       0 -> :ok
@@ -18,10 +23,20 @@ defmodule Benchmarking.Docker do
       |> Keyword.get(:volumes, [])
       |> Enum.map(fn {host, container} -> "--volume=#{Path.absname(host)}:#{container}" end)
 
+    entrypoint =
+      if entrypoint = Access.get(opts, :entrypoint) do
+        ["--entrypoint", entrypoint]
+      else
+        []
+      end
+
+    docker_args = ["run", "--rm", "--network", "none"] ++ entrypoint ++ volumes ++ ["#{repository}:#{tag}"] ++ args
+    Logger.debug("Running Docker: docker #{Enum.join(docker_args, " ")}")
+
     {_, status} =
       System.cmd(
         "docker",
-        ["run", "--rm", "--network", "none"] ++ volumes ++ ["#{repository}:#{tag}"] ++ args
+        docker_args
       )
 
     case status do
