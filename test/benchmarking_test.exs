@@ -33,60 +33,120 @@ defmodule BenchmarkingTest do
     clone_dir = Path.join(tmp_dir, "clone")
     Git.clone_repo("file://#{template_repo_dir}", clone_dir)
     # Create benchmark data
+    repo_url = "file://#{clone_dir}"
+
     tmp_dir
     |> write("input.csv", "-")
     |> write("outcomes.csv", "-")
     |> write(
       "repositories.csv",
       """
-      id,url,ref
-      1,file://#{clone_dir},#{ref}
+      submission-id,url,ref
+      1,#{repo_url},#{ref}
       """
     )
 
-    {:ok, template_repo_dir: template_repo_dir, ref: ref}
+    {:ok, template_repo_dir: template_repo_dir, ref: ref, repo_url: repo_url}
   end
 
-  test "run successful", %{tmp_dir: tmp_dir, template_repo_dir: template_repo_dir, ref: ref} do
+  test "run successful", %{tmp_dir: tmp_dir, template_repo_dir: template_repo_dir, repo_url: repo_url, ref: ref} do
     # Run benchmarking
-    [header, row] =
+    [row] =
       %{
         template_repo: "file://#{template_repo_dir}",
         template_repo_ref: ref,
-        repositories: Path.join(tmp_dir, "repositories.csv"),
-        benchmark_data: Path.join(tmp_dir, "input.csv"),
-        outcomes_data: Path.join(tmp_dir, "outcomes.csv"),
-        headers: ["score"]
+        repositories_file: Path.join(tmp_dir, "repositories.csv"),
+        prediction_volume_mounts: [
+          %{source: tmp_dir, target: "/data"}
+        ],
+        prediction_args: [
+          "predict",
+          "/data/input.csv",
+          "--output",
+          "/data/predictions.csv"
+        ],
+        score_volume_mounts: [
+          %{source: tmp_dir, target: "/data"}
+        ],
+        score_args: [
+          "score",
+          "/data/predictions.csv",
+          "/data/not-used.csv",
+          "--output",
+          "/data/outcomes.csv"
+        ],
+        score_file: Path.join(tmp_dir, "outcomes.csv"),
+        results_file: "results.csv",
+        results_headers: ["score"]
       }
       |> Benchmarking.run()
+      |> CSV.decode!(headers: true)
       |> Enum.into([])
 
     # Check results
-    assert header == "id,status,error_message,score\r\n"
-    assert row == "1,success,,2\r\n"
+    # assert header == "submission-id,url,ref,status,error_message,score\r\n"
+    # assert row == "1,success,,2\r\n"
+    assert %{
+             "error_message" => "",
+             "ref" => ^ref,
+             "score" => "2",
+             "status" => "success",
+             "submission-id" => "1",
+             "url" => ^repo_url
+           } = row
   end
 
   test "run with error", %{tmp_dir: tmp_dir, template_repo_dir: template_repo_dir, ref: ref} do
+    repo_url = "file://#{tmp_dir}/non-existing"
     # Add a non-existing repo
     write(tmp_dir, "repositories.csv", """
-    id,url,ref
-    1,file://#{tmp_dir}/non-existing,#{ref}
+    submission-id,url,ref
+    1,#{repo_url},#{ref}
     """)
 
     # Run benchmarking
-    [_header, row] =
+    [row] =
       %{
         template_repo: "file://#{template_repo_dir}",
         template_repo_ref: ref,
-        repositories: Path.join(tmp_dir, "repositories.csv"),
-        benchmark_data: Path.join(tmp_dir, "input.csv"),
-        outcomes_data: Path.join(tmp_dir, "outcomes.csv"),
-        headers: ["score"]
+        repositories_file: Path.join(tmp_dir, "repositories.csv"),
+        prediction_volume_mounts: [
+          %{source: tmp_dir, target: "/data"}
+        ],
+        prediction_args: [
+          "predict",
+          "/data/input.csv",
+          "--output",
+          "/data/predictions.csv"
+        ],
+        score_volume_mounts: [
+          %{source: tmp_dir, target: "/data"}
+        ],
+        score_args: [
+          "score",
+          "/data/predictions.csv",
+          "/data/not-used.csv",
+          "--output",
+          "/data/outcomes.csv"
+        ],
+        score_file: Path.join(tmp_dir, "outcomes.csv"),
+        results_file: "results.csv",
+        results_headers: ["score"]
       }
       |> Benchmarking.run()
+      |> CSV.decode!(headers: true)
       |> Enum.into([])
 
     # Check results
-    assert row == "1,error,Failed to clone repo,\r\n"
+    message = "Failed to clone repo: #{repo_url}"
+
+    assert %{
+             "error_message" => ^message,
+             "ref" => ref,
+             "score" => "",
+             "status" => "error",
+             "submission-id" => "1",
+             "url" => ^repo_url
+           } = row
   end
 end

@@ -59,20 +59,23 @@ defmodule Benchmarking do
     |> CSV.encode(headers: ["submission-id", "url", "ref", "status", "error_message"] ++ results_headers)
   end
 
-  def run_benchmark(repo, ref, %{
-        score_volume_mounts: score_volume_mounts,
-        score_entrypoint: score_entrypoint,
-        score_args: score_args,
-        score_file: score_file,
-        prediction_volume_mounts: prediction_volume_mounts,
-        prediction_args: prediction_args
-      }) do
+  def run_benchmark(
+        repo,
+        ref,
+        %{
+          score_volume_mounts: score_volume_mounts,
+          score_args: score_args,
+          score_file: score_file,
+          prediction_volume_mounts: prediction_volume_mounts,
+          prediction_args: prediction_args
+        } = settings
+      ) do
     repo_name = repo |> String.split("/") |> List.last() |> String.split(".") |> List.first()
     tag = ref
 
     with :ok <- build_prediction_image(repo, ref, repo_name, tag),
          :ok <- run_prediction_image(repo_name, tag, prediction_volume_mounts, prediction_args),
-         {:ok, result} <- run_scoring(score_args, score_entrypoint, score_volume_mounts, score_file) do
+         {:ok, result} <- run_scoring(score_args, Map.get(settings, :score_entrypoint), score_volume_mounts, score_file) do
       result
     else
       {:error, message} -> [%{"error_message" => message}]
@@ -104,13 +107,15 @@ defmodule Benchmarking do
   end
 
   defp run_scoring(args, entrypoint, volumes, score_file) do
+    params = [volumes: map_volume_mounts(volumes)]
+    params = params ++ if entrypoint, do: [entrypoint], else: []
+
     with :ok <-
            Docker.run(
              @scoring_image_name,
              @scoring_image_tag,
              args,
-             entrypoint: entrypoint,
-             volumes: map_volume_mounts(volumes)
+             params
            ),
          :ok <- check_path(score_file) do
       try do
