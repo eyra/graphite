@@ -75,12 +75,25 @@ defmodule Benchmarking do
 
     with :ok <- build_prediction_image(repo, ref, repo_name, tag),
          :ok <- run_prediction_image(repo_name, tag, prediction_volume_mounts, prediction_args),
-         {:ok, result} <- run_scoring(score_args, Map.get(settings, :score_entrypoint), score_volume_mounts, score_file) do
+         {:ok, result} <-
+           run_scoring(score_args, Map.get(settings, :score_entrypoint), score_volume_mounts, score_file) do
+      cleanup(settings)
       result
     else
-      {:error, message} -> [%{"error_message" => message}]
+      {:error, message} ->
+        cleanup(settings)
+        [%{"error_message" => message}]
     end
   end
+
+  defp cleanup(%{cleanup: cleanup_cmd}) when is_nil(cleanup_cmd) or cleanup_cmd == [], do: :ok
+
+  defp cleanup(%{cleanup: [cmd | args]}) do
+    Logger.debug("Cleaning up: #{cmd} #{Enum.join(args, " ")}")
+    System.cmd(cmd, args)
+  end
+
+  defp cleanup(%{}), do: :ok
 
   defp get_status(%{"error_message" => _}), do: "error"
   defp get_status(_), do: "success"
@@ -107,16 +120,11 @@ defmodule Benchmarking do
   end
 
   defp run_scoring(args, entrypoint, volumes, score_file) do
-    params = [volumes: map_volume_mounts(volumes)]
-    params = params ++ if entrypoint, do: [entrypoint], else: []
+    params = dbg(volumes: map_volume_mounts(volumes))
+    params = params ++ if entrypoint, do: [entrypoint: entrypoint], else: []
 
     with :ok <-
-           Docker.run(
-             @scoring_image_name,
-             @scoring_image_tag,
-             args,
-             params
-           ),
+           Docker.run(@scoring_image_name, @scoring_image_tag, args, params),
          :ok <- check_path(score_file) do
       try do
         result =
