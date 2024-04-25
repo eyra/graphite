@@ -8,8 +8,15 @@ defmodule Benchmarking.Docker do
   def build(path, repository, tag) do
     with {:ok, docker_file} <- Repo.dockerfile(path) do
       if File.exists?(Path.join(path, docker_file)) do
+        docker_args = ["build", "-q", "-t", "#{repository}:#{tag}", "-f", docker_file, "--platform", "linux/amd64", "."]
+        Logger.debug("Running Docker: docker #{Enum.join(docker_args, " ")}")
+
         {_, status} =
-          System.cmd("docker", ["build", "-q", "-t", "#{repository}:#{tag}", "-f", docker_file, "."], cd: path)
+          System.cmd(
+            "docker",
+            docker_args,
+            cd: path
+          )
 
         case status do
           0 -> :ok
@@ -35,7 +42,10 @@ defmodule Benchmarking.Docker do
         []
       end
 
-    docker_args = ["run", "--rm", "--network", "none"] ++ entrypoint ++ volumes ++ ["#{repository}:#{tag}"] ++ args
+    docker_args =
+      ["run", "--rm", "--network", "none", "--platform", "linux/amd64"] ++
+        entrypoint ++ volumes ++ ["#{repository}:#{tag}"] ++ args
+
     Logger.debug("Running Docker: docker #{Enum.join(docker_args, " ")}")
 
     {_, status} =
