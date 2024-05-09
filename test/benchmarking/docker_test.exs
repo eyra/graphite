@@ -2,6 +2,7 @@ defmodule Benchmarking.DockerTest do
   use ExUnit.Case, async: true
 
   alias Benchmarking.Random
+  alias Benchmarking.Tmp
 
   # setup do
   #   on_exit(fn ->
@@ -38,5 +39,9 @@ defmodule Benchmarking.DockerTest do
 
     images = Benchmarking.Docker.images()
     assert Enum.any?(images, &(&1.repository == "docker-test" && &1.tag == tag))
+  end
+
+  test "works with repositories with non-tag safe name", %{tag: tag} do
+    assert :ok == Benchmarking.Docker.build(__DIR__, "ALL-CAPS", tag)
   end
 end
