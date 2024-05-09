@@ -8,7 +8,7 @@ defmodule Benchmarking.Docker do
   def build(path, repository, tag) do
     with {:ok, docker_file} <- Repo.dockerfile(path) do
       if File.exists?(Path.join(path, docker_file)) do
-        docker_args = ["build", "-q", "-t", "#{repository}:#{tag}", "-f", docker_file, "--platform", "linux/amd64", "."]
+        docker_args = ["build", "-q", "-t", get_tag(repository, tag), "-f", docker_file, "--platform", "linux/amd64", "."]
         Logger.debug("Running Docker: docker #{Enum.join(docker_args, " ")}")
 
         {_, status} =
@@ -44,7 +44,7 @@ defmodule Benchmarking.Docker do
 
     docker_args =
       ["run", "--rm", "--network", "none", "--platform", "linux/amd64"] ++
-        entrypoint ++ volumes ++ ["#{repository}:#{tag}"] ++ args
+        entrypoint ++ volumes ++ [get_tag(repository, tag)] ++ args
 
     Logger.debug("Running Docker: docker #{Enum.join(docker_args, " ")}")
 
@@ -72,5 +72,16 @@ defmodule Benchmarking.Docker do
     |> String.split("\n")
     |> Enum.map(&Jason.decode!/1)
     |> Enum.map(&%Image{repository: &1["Repository"], tag: &1["Tag"], id: &1["ID"]})
+  end
+
+  defp get_tag(repository, ref) do
+    name =
+      repository
+      |> String.downcase()
+      |> String.trim()
+      |> String.normalize(:nfd)
+      |> String.replace(~r/[^a-z0-9\-]+/, "-", global: true)
+
+    "#{name}:#{ref}"
   end
 end
