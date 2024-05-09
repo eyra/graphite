@@ -1,5 +1,5 @@
 %{
   "csv": {:hex, :csv, "3.0.5", "3c1455127e92de8845806db89554ad7d45e0212974be41dd9c38a5c881861713", [:mix], [], "hexpm", "cbbe5455c93df5f3f2943e995e28b7a8808361ba34cf3e44267d77a01eaf1609"},
-  "jason": {:hex, :jason, "1.4.0", "e855647bc964a44e2f67df589ccf49105ae039d4179db7f6271dfd3843dc27e6", [:mix], [{:decimal, "~> 1.0 or ~> 2.0", [hex: :decimal, repo: "hexpm", optional: true]}], "hexpm", "79a3791085b2a0f743ca04cec0f7be26443738779d09302e01318f97bdb82121"},
+  "jason": {:hex, :jason, "1.4.1", "af1504e35f629ddcdd6addb3513c3853991f694921b1b9368b0bd32beb9f1b63", [:mix], [{:decimal, "~> 1.0 or ~> 2.0", [hex: :decimal, repo: "hexpm", optional: true]}], "hexpm", "fbb01ecdfd565b56261302f7e1fcc27c4fb8f32d56eab74db621fc154604a7a1"},
   "styler": {:hex, :styler, "0.11.9", "2595393b94e660cd6e8b582876337cc50ff047d184ccbed42fdad2bfd5d78af5", [:mix], [], "hexpm", "8b7806ba1fdc94d0a75127c56875f91db89b75117fcc67572661010c13e1f259"},
 }
