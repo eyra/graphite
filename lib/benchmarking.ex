@@ -48,7 +48,7 @@ defmodule Benchmarking do
   def process(%{repositories_file: repositories_file, results_headers: results_headers} = settings) do
     repositories_file
     |> Path.expand()
-    |> File.stream!([read_ahead: 100_000], 1000)
+    |> File.stream!(1000, read_ahead: 100_000)
     |> CSV.decode!(headers: true)
     |> Stream.flat_map(fn %{"url" => url, "ref" => ref, "submission-id" => id} ->
       url

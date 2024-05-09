@@ -1,0 +1,14 @@
+name: Elixir CI
+
+on: push
+
+env:
+  MIX_ENV: test
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: earthly/actions-setup@v1
+      - uses: actions/checkout@v4
+      - run: earthly -P --ci +ci
