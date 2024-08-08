@@ -28,7 +28,7 @@ defmodule Benchmarking.MixProject do
     [
       {:csv, "~> 3.0"},
       {:jason, "~> 1.4"},
-      {:styler, "~> 0.11", only: [:dev, :test], runtime: false}
+      {:styler, "~> 1.0", only: [:dev, :test], runtime: false}
     ]
   end
 end
