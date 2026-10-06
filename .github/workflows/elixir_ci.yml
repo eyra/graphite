@@ -10,5 +10,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: earthly/actions-setup@v1
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: earthly -P --ci +ci
